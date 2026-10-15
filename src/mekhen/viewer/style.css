@@ -119,11 +119,28 @@ code {
   letter-spacing: 0.02em;
 }
 
-.project {
+.project-select {
+  min-width: 0;
+  flex: 1;
+  padding: 2px 4px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
   color: var(--muted);
-  overflow: hidden;
+  font: inherit;
   text-overflow: ellipsis;
-  white-space: nowrap;
+  cursor: pointer;
+}
+
+.project-select:hover,
+.project-select:focus {
+  border-color: var(--border);
+  outline: none;
+}
+
+.project-select option {
+  background: var(--surface);
+  color: var(--text);
 }
 
 .filter {
@@ -201,6 +218,9 @@ code {
 }
 
 .s-both::before { background: var(--accent); }
+.s-plan::before { background: var(--accent); }
+.s-changes::before { background: var(--changed); }
+.s-plan { color: var(--accent) !important; }
 .s-generated::before { background: var(--added); }
 .s-lint-error::before { background: var(--removed); }
 .s-stale::before { background: var(--changed); }
@@ -294,6 +314,13 @@ code {
   background: var(--surface-2);
 }
 
+.segmented button:disabled {
+  color: var(--muted);
+  opacity: 0.5;
+  cursor: default;
+  background: transparent;
+}
+
 .segmented button[aria-pressed="true"] {
   background: var(--accent);
   color: #fff;
@@ -325,10 +352,14 @@ code {
   background: var(--border);
 }
 
-.panels[data-view="baseline"] { grid-template-columns: 1fr; }
-.panels[data-view="proposed"] { grid-template-columns: 1fr; }
+.panels[data-view="baseline"],
+.panels[data-view="proposed"],
+.panels[data-view="unified"] { grid-template-columns: 1fr; }
 .panels[data-view="baseline"] .panel[data-role="proposed"],
-.panels[data-view="proposed"] .panel[data-role="baseline"] {
+.panels[data-view="proposed"] .panel[data-role="baseline"],
+.panels[data-view="unified"] .panel[data-role="baseline"],
+.panels[data-view="unified"] .panel[data-role="proposed"],
+.panels:not([data-view="unified"]) .panel[data-role="unified"] {
   display: none;
 }
 
@@ -572,6 +603,8 @@ code {
 .change.removed .sign { color: var(--removed); }
 .change.changed { background: var(--changed-soft); }
 .change.changed .sign { color: var(--changed); }
+.change.other { background: var(--surface-2); }
+.change.other .sign { color: var(--muted); }
 
 .issue {
   display: grid;

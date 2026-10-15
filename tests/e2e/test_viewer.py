@@ -15,7 +15,9 @@ from conftest import make_project, write
 
 sync_api = pytest.importorskip("playwright.sync_api")
 
+from mekhen.cli.registry import Registry  # noqa: E402
 from mekhen.cli.server import MekhenServer, start_watcher  # noqa: E402
+from mekhen.core.store import project_key  # noqa: E402
 
 pytestmark = pytest.mark.e2e
 
@@ -53,7 +55,10 @@ def served(project_dir):
     write(store / "baseline" / "flow.mmd", BASE)
     write(store / "proposed" / "flow.mmd", PROPOSED)
     write(store / "baseline" / "broken.mmd", "%% mekhen:hand-written\nflowchart TD\n    a --> end\n")
-    srv = MekhenServer(make_project(project_dir), port=0)
+    registry = Registry()
+    registry.add(make_project(project_dir))
+    srv = MekhenServer(registry, port=0)
+    srv.key = project_key(project_dir)
     threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True).start()
     start_watcher(srv, interval=0.1)
     yield srv, store
@@ -70,6 +75,7 @@ def page(browser, served):
     errors: list[str] = []
     pg.on("pageerror", lambda e: errors.append(str(e)))
     pg.base = f"http://127.0.0.1:{srv.server_port}/"
+    pg.key = srv.key
     yield pg
     context.close()
     assert errors == []
@@ -91,7 +97,7 @@ def classes_by_node(page, role):
 
 
 def test_renders_and_highlights(page):
-    page.goto(page.base + "#flow")
+    page.goto(page.base + f"#{page.key}/flow")
     page.wait_for_selector('.panel[data-role="proposed"] .canvas svg', timeout=30000)
     page.wait_for_selector('.panel[data-role="baseline"] .canvas svg')
 
@@ -118,7 +124,7 @@ def test_renders_and_highlights(page):
 
 
 def test_highlight_toggle_renders_plain_text(page):
-    page.goto(page.base + "#flow")
+    page.goto(page.base + f"#{page.key}/flow")
     page.wait_for_selector('.panel[data-role="proposed"] .canvas svg', timeout=30000)
     page.uncheck("#highlight")
     page.wait_for_function(
@@ -128,7 +134,7 @@ def test_highlight_toggle_renders_plain_text(page):
 
 
 def test_syntax_error_is_shown_in_the_panel(page):
-    page.goto(page.base + "#broken")
+    page.goto(page.base + f"#{page.key}/broken")
     page.wait_for_selector('.panel[data-role="baseline"] .panel-error:not([hidden])', timeout=30000)
     assert "Mermaid could not render" in page.inner_text('.panel[data-role="baseline"] .panel-error')
     assert "a --> end" in page.inner_text('.panel[data-role="baseline"] .canvas pre.source')
@@ -137,7 +143,7 @@ def test_syntax_error_is_shown_in_the_panel(page):
 
 def test_live_update_keeps_zoom_without_reload(page, served):
     _, store = served
-    page.goto(page.base + "#flow")
+    page.goto(page.base + f"#{page.key}/flow")
     page.wait_for_selector('.panel[data-role="proposed"] .canvas svg', timeout=30000)
     page.wait_for_selector("#conn[data-state='live']")
     page.evaluate("window.__marker = 1")
@@ -153,14 +159,61 @@ def test_live_update_keeps_zoom_without_reload(page, served):
 
 
 def test_routing_and_views(page):
-    page.goto(page.base + "?view=proposed#flow")
+    page.goto(page.base + f"?view=proposed#{page.key}/flow")
     page.wait_for_selector('.panel[data-role="proposed"] .canvas svg', timeout=30000)
     assert not page.is_visible('.panel[data-role="baseline"]')
     page.click('button[data-view="side"]')
     assert page.is_visible('.panel[data-role="baseline"]')
-    assert "view=" not in page.url
-    page.click('a.item[href="#broken"]')
+    assert "view=side" in page.url
+    page.click(f'a.item[href="#{page.key}/broken"]')
     page.wait_for_selector('#diagram-title:text("broken")')
-    assert page.url.endswith("#broken")
+    assert page.url.endswith(f"#{page.key}/broken")
     page.fill("#filter", "flo")
     assert page.eval_on_selector_all("a.item", "els => els.map(e => e.title)") == ["flow"]
+
+
+@pytest.fixture
+def plan_served(sample_dir, tmp_path):
+    from conftest import git_commit
+
+    from mekhen.core.plans import set_active_plan
+
+    git_commit(sample_dir)
+    plan = write(tmp_path / "plan.md", "# Add a cache\n\nEdit `core/db.py` and add `src/sample/core/cache.py`.\n")
+    set_active_plan(sample_dir, plan, "cli")
+    registry = Registry()
+    registry.add(make_project(sample_dir))
+    registry.scan()
+    srv = MekhenServer(registry, port=0)
+    threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True).start()
+    start_watcher(srv, interval=0.1)
+    yield srv, plan
+    srv.stopping.set()
+    srv.shutdown()
+    srv.server_close()
+
+
+def test_follow_opens_the_plan_in_the_unified_view(browser, plan_served):
+    srv, plan = plan_served
+    context = browser.new_context(viewport={"width": 1400, "height": 900})
+    page = context.new_page()
+    errors: list[str] = []
+    page.on("pageerror", lambda e: errors.append(str(e)))
+    page.goto(f"http://127.0.0.1:{srv.server_port}/")  # no hash: follow picks the active plan
+    page.wait_for_selector('.panel[data-role="unified"] .canvas svg', timeout=30000)
+    assert page.is_visible('.panel[data-role="unified"]') and not page.is_visible('.panel[data-role="baseline"]')
+    assert "Add a cache" in page.inner_text("#diagram-title")
+    nodes = classes_by_node(page, "unified")
+    assert "mekhenAdded" in nodes["n_sample__core__cache"]
+    assert "mekhenTouched" in nodes["n_sample__core__db"]
+    assert "mekhen" not in nodes["n_sample__api__routes"]
+    assert "edited" in page.inner_text("#summary-body")
+
+    page.wait_for_selector("#conn[data-state='live']")
+    write(plan, "# Add a cache\n\nEdit `core/db.py` and `core/models.py`, add `src/sample/core/cache.py`.\n")
+    page.wait_for_function(
+        """() => [...document.querySelectorAll('.panel[data-role="unified"] g.node')]
+                .some(n => n.id.includes('n_sample__core__models') && n.classList.contains('mekhenTouched'))""",
+        timeout=10000)
+    context.close()
+    assert errors == []

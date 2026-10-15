@@ -14,11 +14,14 @@
     <aside class="sidebar">
       <div class="brand">
         <span class="logo">mekhen</span>
-        <span class="project" id="project-name"></span>
+        <select id="project-select" class="project-select" aria-label="Project" title="Project"></select>
       </div>
       <input id="filter" class="filter" type="search" placeholder="Filter diagrams  ( / )" autocomplete="off" spellcheck="false">
       <ul id="diagram-list" class="diagram-list" aria-label="Diagrams"></ul>
       <div class="sidebar-foot">
+        <label class="toggle" title="Jump to a plan as soon as it is written or changed, in any project (p)">
+          <input type="checkbox" id="follow" checked> Follow the active plan
+        </label>
         <div id="store-info" class="store-info"></div>
         <div class="conn" id="conn" data-state="connecting">connecting</div>
       </div>
@@ -28,9 +31,10 @@
       <header class="toolbar">
         <h1 id="diagram-title" class="title">&nbsp;</h1>
         <div class="segmented" role="group" aria-label="View">
-          <button type="button" data-view="side" title="Side by side (1)">Side by side</button>
-          <button type="button" data-view="baseline" title="Baseline only (2)">Baseline</button>
-          <button type="button" data-view="proposed" title="Proposed only (3)">Proposed</button>
+          <button type="button" data-view="unified" title="One diagram with the changes marked (1)">Unified</button>
+          <button type="button" data-view="side" title="Side by side (2)">Side by side</button>
+          <button type="button" data-view="baseline" title="Baseline only (3)">Baseline</button>
+          <button type="button" data-view="proposed" title="Proposed only (4)">Proposed</button>
         </div>
         <label class="toggle" title="Colour what changed between baseline and proposed (h)">
           <input type="checkbox" id="highlight" checked> Highlight changes
@@ -67,6 +71,16 @@
           <div class="viewport"><div class="canvas"></div></div>
           <div class="panel-empty" hidden></div>
         </div>
+        <div class="panel" data-role="unified">
+          <div class="panel-head">
+            <span class="role">Changes</span>
+            <span class="badge origin" hidden></span>
+            <span class="path"></span>
+          </div>
+          <div class="panel-error" hidden></div>
+          <div class="viewport"><div class="canvas"></div></div>
+          <div class="panel-empty" hidden></div>
+        </div>
         <div class="main-message" id="main-message" hidden></div>
       </section>
 
@@ -76,7 +90,7 @@
           <span class="legend">
             <span class="key added">added</span>
             <span class="key removed">removed</span>
-            <span class="key changed">changed</span>
+            <span class="key changed">changed or edited</span>
           </span>
           <span id="summary-counts" class="summary-counts"></span>
         </summary>

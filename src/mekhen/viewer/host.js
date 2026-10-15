@@ -1,14 +1,16 @@
 // The viewer's only link to the outside world. Everything else in the viewer is host-agnostic.
 //
 // A host provides:
-//   getProject()      -> Promise<project JSON>          (GET /api/project)
-//   listDiagrams()    -> Promise<list JSON>             (GET /api/diagrams    = `mekhen list --json`)
-//   getDiagram(id)    -> Promise<diagram JSON | null>   (GET /api/diagrams/id = `mekhen show ID --json`)
-//   subscribe(cb)     -> unsubscribe function; cb receives
-//                        {type: "diagrams", changed, added, removed} | {type: "connected"} | {type: "disconnected"}
+//   getProjects()          -> Promise<{projects: [...], follow: {project, time} | null}>   (GET /api/projects)
+//   getProject(key)        -> Promise<project JSON | null>                                (GET /api/projects/KEY)
+//   listDiagrams(key)      -> Promise<list JSON | null>     (= `mekhen list --json`)      (GET /api/projects/KEY/diagrams)
+//   getDiagram(key, id)    -> Promise<diagram JSON | null>  (= `mekhen show ID --json`)   (GET /api/projects/KEY/diagrams/ID)
+//   subscribe(cb)          -> unsubscribe function; cb receives
+//                             {type: "diagrams", project, changed, added, removed} | {type: "projects", projects, follow}
+//                             | {type: "connected"} | {type: "disconnected"}
 //
-// HttpHost talks to `mekhen serve`. A VS Code webview would add a host that relays the same JSON
-// over postMessage from `mekhen list/show/watch --json`; nothing else needs to change.
+// HttpHost talks to `mekhen serve`. Another host (an editor webview, say) would relay the same JSON
+// over its own channel; nothing else needs to change.
 
 async function getJSON(url) {
   const response = await fetch(url, { cache: "no-store" });
@@ -17,26 +19,32 @@ async function getJSON(url) {
   return response.json();
 }
 
+const enc = encodeURIComponent;
+
 export class HttpHost {
-  getProject() {
-    return getJSON("/api/project");
+  getProjects() {
+    return getJSON("/api/projects");
   }
 
-  listDiagrams() {
-    return getJSON("/api/diagrams");
+  getProject(key) {
+    return getJSON(`/api/projects/${enc(key)}`);
   }
 
-  getDiagram(id) {
-    return getJSON(`/api/diagrams/${encodeURIComponent(id)}`);
+  listDiagrams(key) {
+    return getJSON(`/api/projects/${enc(key)}/diagrams`);
+  }
+
+  getDiagram(key, id) {
+    return getJSON(`/api/projects/${enc(key)}/diagrams/${enc(id)}`);
   }
 
   subscribe(callback) {
     const source = new EventSource("/api/events");
     source.addEventListener("open", () => callback({ type: "connected" }));
     source.addEventListener("error", () => callback({ type: "disconnected" }));
-    source.addEventListener("diagrams", (event) => {
-      callback({ type: "diagrams", ...JSON.parse(event.data) });
-    });
+    for (const type of ["diagrams", "projects"]) {
+      source.addEventListener(type, (event) => callback({ type, ...JSON.parse(event.data) }));
+    }
     return () => source.close();
   }
 }

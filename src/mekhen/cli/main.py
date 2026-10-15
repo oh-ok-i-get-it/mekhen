@@ -5,12 +5,14 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from pathlib import Path
 
 from mekhen import __version__
 from mekhen.core import conventions
 from mekhen.core.config import STORES, ConfigError, load_config
 from mekhen.core.gen import GENERATORS, GenError, parser_for
 from mekhen.core.model import display_path
+from mekhen.core.plans import clear_active_plan, set_active_plan
 from mekhen.core.project import Project, UsageError
 from mekhen.core.store import describe
 from mekhen.mermaid_pin import MERMAID_URL, MERMAID_VERSION
@@ -36,12 +38,22 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--version", action="version", version=f"mekhen {__version__} (Mermaid {MERMAID_VERSION})")
     sub = p.add_subparsers(dest="command", metavar="COMMAND")
 
-    s = sub.add_parser("serve", parents=[common], help="open the viewer (one tab, reused if already running)")
+    s = sub.add_parser("serve", parents=[common], help="open the viewer (one per user, reused if already running)")
     s.add_argument("path", nargs="?", help="project folder")
+    s.add_argument("--plan", metavar="FILE", help="also show this Markdown plan (same as `mekhen plan FILE`)")
     s.add_argument("--port", type=int, default=0, help="port on 127.0.0.1 (default: any free port)")
     s.add_argument("--no-open", action="store_true", help="print the URL instead of opening a browser tab")
     s.add_argument("--gen", action="store_true", help="refresh generated baselines before serving")
     s.add_argument("--offline", action="store_true", help="serve Mermaid from the local copy (see `mekhen mermaid download`)")
+    s.add_argument("--idle-minutes", type=float, default=0, metavar="N",
+                   help="stop after N minutes with no viewer and no activity (default: never)")
+
+    s = sub.add_parser("plan", parents=[common], help="show a Markdown plan's changes as the @plan view")
+    s.add_argument("file", nargs="?", help="the plan (any Markdown file)")
+    s.add_argument("--clear", action="store_true", help="stop showing the project's active plan")
+    s.add_argument("--no-open", action="store_true", help="don't open a browser tab")
+    s.add_argument("--no-serve", action="store_true", help="only record the plan and check it; don't start the viewer")
+    s.add_argument("--json", action="store_true", help="machine-readable summary")
 
     s = sub.add_parser("list", parents=[common], help="list the diagrams and their status")
     s.add_argument("path", nargs="?", help="project folder")
@@ -238,18 +250,93 @@ def cmd_mermaid(args: argparse.Namespace) -> int:
     return 0
 
 
+def _announce(project: Project, args: argparse.Namespace) -> None:
+    from mekhen.cli.registry import register_project
+
+    register_project(project.root, getattr(args, "store", None), getattr(args, "dir", None))
+
+
+def _open(url: str) -> None:
+    import webbrowser
+
+    webbrowser.open(url)
+
+
 def cmd_serve(args: argparse.Namespace) -> int:
+    from mekhen.cli import instances
     from mekhen.cli.server import serve
+    from mekhen.core.store import project_key
 
     project = _project(args)
     if args.gen:
         for path, changed in project.regenerate_all():
             print(f"{'wrote' if changed else 'up to date'} {display_path(path, project.root)}")
-    return serve(project, port=args.port, open_browser=not args.no_open, offline=args.offline)
+    if args.plan:
+        set_active_plan(project.root, _plan_file(args.plan), "serve")
+    _announce(project, args)
+    existing = instances.find()
+    if existing:
+        url = f"{existing.url}#{project_key(project.root)}"
+        print(f"mekhen is already running at {existing.url}; showing {project.root.name} there")
+        if not args.no_open and existing.viewers == 0:
+            _open(url)
+        return 0
+    return serve(project, port=args.port, open_browser=not args.no_open, offline=args.offline,
+                 idle_minutes=args.idle_minutes)
+
+
+def _plan_file(value: str) -> Path:
+    path = Path(value).expanduser()
+    if not path.is_file():
+        raise UsageError(f"no such plan file: {value}")
+    return path
+
+
+def cmd_plan(args: argparse.Namespace) -> int:
+    from mekhen.cli import instances
+    from mekhen.core.store import project_key
+
+    project = _project(args)
+    if args.clear:
+        clear_active_plan(project.root)
+        print(f"no active plan for {project.root.name}")
+        return 0
+    if not args.file:
+        raise UsageError("give a plan file, or --clear")
+    plan = set_active_plan(project.root, _plan_file(args.file), "cli")
+    _announce(project, args)
+    view = project.views.plan()
+    counts = view.graph.counts() if view and view.graph else {}
+    issues = view.issues if view else []
+    error = view.error if view else None
+    if args.json:
+        print(json.dumps({"schema": 1, "project": str(project.root), "plan": str(plan.path), "title": plan.title,
+                          "counts": counts, "error": error,
+                          "issues": [{"line": i.line, "message": i.message} for i in issues]}, indent=2))
+    else:
+        summary = ", ".join(f"{n} {k}" for k, n in counts.items() if n) or "no changes found"
+        print(f"plan: {plan.title}  ({project.root.name}: {summary})")
+        for issue in issues:
+            print(f"{plan.path}:{issue.line}: {issue.message}", file=sys.stderr)
+        if error:
+            print(f"mekhen: {error}", file=sys.stderr)
+    if not args.no_serve:
+        existing = instances.find()
+        if existing is None:
+            existing = instances.spawn(float(project.cfg.get("idle_minutes", 30)))
+        if existing is None:
+            print("mekhen: the viewer did not start; run `mekhen serve` to see why", file=sys.stderr)
+            return 1
+        if not args.no_open and existing.viewers == 0 and project.cfg.get("open_on_plan", True):
+            _open(f"{existing.url}#{project_key(project.root)}/@plan")
+        if not args.json:
+            print(f"viewer: {existing.url}")
+    return 1 if issues or error else 0
 
 
 COMMANDS = {
     "serve": cmd_serve,
+    "plan": cmd_plan,
     "list": cmd_list,
     "show": cmd_show,
     "new": cmd_new,

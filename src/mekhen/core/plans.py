@@ -358,7 +358,7 @@ def apply_plan(base: Graph, text: str, files: list[str], provider, options: dict
 @dataclass
 class ActivePlan:
     path: Path
-    source: str  # "cli", "serve", or an integration's name such as "claude-code"
+    source: str  # "cli", "serve", or the name of the editor or agent integration that set it
     time: float
     session: str | None = None
 

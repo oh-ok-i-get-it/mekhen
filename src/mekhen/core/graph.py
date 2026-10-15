@@ -310,6 +310,7 @@ EDGE_STYLES = {
     "removed": "stroke:#cf222e,stroke-width:3px,stroke-dasharray:6 3",
     "changed": "stroke:#bf8700,stroke-width:3px",
 }
+FADED_EDGE = "stroke:#8c959f,stroke-opacity:0.35"
 CLASS_NAMES = {"added": "mekhenAdded", "removed": "mekhenRemoved", "changed": "mekhenChanged",
                "touched": "mekhenTouched"}
 # Which states each side of a side-by-side view shows.
@@ -383,6 +384,8 @@ def to_mermaid(g: Graph, *, side: str | None = None, highlight: bool = True, hea
             edge_marks.setdefault(s, []).append(i)
     if marks or edge_marks:
         lines.append("    %% mekhen: change highlighting")
+        if edges:  # fade everything unmarked so the changes stand out; marked edges override below
+            lines.append(f"    linkStyle default {FADED_EDGE}")
     for state, ids in marks.items():
         lines.append(f"    classDef {CLASS_NAMES[state]} {NODE_STYLES[state]}")
         lines.append(f"    class {','.join(ids)} {CLASS_NAMES[state]}")

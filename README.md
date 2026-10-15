@@ -207,3 +207,7 @@ Layout:
 - `src/mekhen/viewer/`: the web app. `host.js` is its only link to the server, and `renderer.js`
   is the only place that turns a diagram into a picture.
 - `.claude-plugin/` and `hooks/`: the Claude Code plugin.
+
+## License
+
+Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE).

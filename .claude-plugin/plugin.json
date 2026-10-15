@@ -9,5 +9,6 @@
   },
   "homepage": "https://github.com/oh-ok-i-get-it/mekhen",
   "repository": "https://github.com/oh-ok-i-get-it/mekhen",
+  "license": "Apache-2.0",
   "keywords": ["diagram", "architecture", "plan", "mermaid", "visualization"]
 }

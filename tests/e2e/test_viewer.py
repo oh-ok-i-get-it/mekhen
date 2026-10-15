@@ -19,7 +19,7 @@ from mekhen.cli.registry import Registry  # noqa: E402
 from mekhen.cli.server import MekhenServer, start_watcher  # noqa: E402
 from mekhen.core.store import project_key  # noqa: E402
 
-pytestmark = pytest.mark.e2e
+pytestmark = [pytest.mark.e2e, pytest.mark.usefixtures("repo_store")]
 
 BASE = """%% mekhen:hand-written
 flowchart LR

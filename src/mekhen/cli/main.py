@@ -238,6 +238,8 @@ def cmd_gen(args: argparse.Namespace) -> int:
         results = [project.generate(args.kind, gen_args)]
     for path, changed in results:
         print(f"{'wrote' if changed else 'up to date'} {display_path(path, project.root)}")
+    if not results:
+        print("No generated baselines yet. Create one with `mekhen gen imports`.")
     return 0
 
 

@@ -5,6 +5,8 @@ from conftest import write
 
 from mekhen.cli.main import main
 
+pytestmark = pytest.mark.usefixtures("repo_store")  # these tests look inside <project>/.diagrams/
+
 
 def run(capsys, *argv):
     code = main(list(argv))

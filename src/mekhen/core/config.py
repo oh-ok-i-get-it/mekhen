@@ -5,7 +5,7 @@ Precedence for where diagrams live (first match wins):
   2. MEKHEN_STORE environment variable
   3. project config: mekhen.toml (top level) or [tool.mekhen] in pyproject.toml
   4. user config: ~/.mekhen/config.toml
-  5. the default, store = "repo" (<root>/.diagrams/)
+  5. the default, store = "home" (~/.mekhen/projects/<name>-<hash>/): nothing in the project
 """
 
 from __future__ import annotations
@@ -20,7 +20,7 @@ from typing import Any, Mapping
 
 PROJECT_MARKERS = ("pyproject.toml", "mekhen.toml", ".git")
 STORES = ("repo", "home")
-DEFAULT_STORE = "repo"
+DEFAULT_STORE = "home"
 
 
 class ConfigError(Exception):

@@ -16,7 +16,7 @@ from mekhen.core.config import Config
 from mekhen.core.conventions import GENERATED_PREFIX, HAND_WRITTEN
 from mekhen.core.diff import DiffResult, diff, unsupported
 from mekhen.core.discovery import detect_origin, discover, read_text, side_files
-from mekhen.core.gen import GENERATORS, GenError, command_args, options_for, parse_command, parser_for
+from mekhen.core.gen import GENERATORS, GenError, command_args, options_for, parse_command
 from mekhen.core.lint import lint_side
 from mekhen.core.model import SCHEMA, Diagram, LintIssue, Side, display_path
 from mekhen.core.store import describe, ensure_store, git_ignores, store_dir
@@ -258,7 +258,7 @@ class Project:
         return path, True
 
     def regenerate_all(self) -> list[tuple[Path, bool]]:
-        """Refresh every generated baseline; with none yet, generate the import graph."""
+        """Refresh every generated baseline (none yet: nothing to do)."""
         results = []
         for d in self.diagrams().values():
             side = d.baseline
@@ -266,8 +266,6 @@ class Project:
                 continue
             kind, args = parse_command(side.gen_command)
             results.append(self.generate(kind, args))
-        if not results:
-            results.append(self.generate("imports", _empty_args("imports")))
         return results
 
     # -- watching ---------------------------------------------------------------------------
@@ -295,6 +293,3 @@ class Project:
                 out[d.id] = ("error", str(e))
         return out
 
-
-def _empty_args(kind: str) -> argparse.Namespace:
-    return parser_for(kind).parse_args([])

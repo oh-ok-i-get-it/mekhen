@@ -89,3 +89,37 @@ def test_conventions(capsys, project_dir):
 def test_show_unknown(capsys, project_dir):
     code, _, err = run(capsys, "show", "nope", "--project", str(project_dir))
     assert code == 1 and "no diagram named" in err
+
+
+def test_plan_command(capsys, sample_dir, tmp_path):
+    from mekhen.core.plans import active_plan
+
+    plan = write(tmp_path / "plan.md", "# Cache\n\nEdit `core/db.py`, add `src/sample/core/cache.py`.\n")
+    code, out, err = run(capsys, "plan", str(plan), "--project", str(sample_dir), "--no-serve")
+    assert code == 0, err
+    assert "plan: Cache" in out and "1 added" in out and "1 touched" in out
+    assert active_plan(sample_dir).path == plan.resolve()
+
+    write(plan, "# Cache\n\n```mekhen\n- src/sample/nope.py\nwhat is this\n```\n")
+    code, out, err = run(capsys, "plan", str(plan), "--project", str(sample_dir), "--no-serve", "--json")
+    data = json.loads(out)
+    assert code == 1 and [i["line"] for i in data["issues"]] == [4, 5]
+
+    code, out, _ = run(capsys, "plan", "--clear", "--project", str(sample_dir))
+    assert code == 0 and active_plan(sample_dir) is None
+    code, _, err = run(capsys, "plan", str(tmp_path / "missing.md"), "--project", str(sample_dir), "--no-serve")
+    assert code == 2 and "no such plan file" in err
+
+
+def test_core_knows_nothing_about_claude():
+    """The core works with any plan from any tool; integrations live in mekhen.cli."""
+    from pathlib import Path
+
+    import mekhen.core
+
+    core = Path(mekhen.core.__file__).parent
+    for path in core.rglob("*.py"):
+        text = path.read_text(encoding="utf-8")
+        assert "permission_mode" not in text, path
+        assert "mekhen.cli" not in text, path
+        assert "claude" not in text.lower(), path

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>mekhen</title>
+  <link rel="icon" href="/viewer/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/viewer/style.css">
+  <!-- mekhen:mermaid -->
+  <script type="module" src="/viewer/app.js"></script>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="logo">mekhen</span>
+        <select id="project-select" class="project-select" aria-label="Project" title="Project"></select>
+      </div>
+      <input id="filter" class="filter" type="search" placeholder="Filter diagrams  ( / )" autocomplete="off" spellcheck="false">
+      <ul id="diagram-list" class="diagram-list" aria-label="Diagrams"></ul>
+      <div class="sidebar-foot">
+        <label class="toggle" title="Jump to a plan as soon as it is written or changed, in any project (p)">
+          <input type="checkbox" id="follow" checked> Follow the active plan
+        </label>
+        <div id="store-info" class="store-info"></div>
+        <div class="conn" id="conn" data-state="connecting">connecting</div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="toolbar">
+        <h1 id="diagram-title" class="title">&nbsp;</h1>
+        <div class="segmented" role="group" aria-label="View">
+          <button type="button" data-view="unified" title="One diagram with the changes marked (1)">Unified</button>
+          <button type="button" data-view="side" title="Side by side (2)">Side by side</button>
+          <button type="button" data-view="baseline" title="Baseline only (3)">Baseline</button>
+          <button type="button" data-view="proposed" title="Proposed only (4)">Proposed</button>
+        </div>
+        <label class="toggle" title="Colour what changed between baseline and proposed (h)">
+          <input type="checkbox" id="highlight" checked> Highlight changes
+        </label>
+        <label class="toggle" title="Pan and zoom both panels together (s)">
+          <input type="checkbox" id="sync" checked> Sync pan/zoom
+        </label>
+        <div class="zoom-buttons">
+          <button type="button" id="zoom-out" title="Zoom out (-)">&minus;</button>
+          <button type="button" id="fit" title="Fit to panel (f or double-click)">Fit</button>
+          <button type="button" id="actual" title="Actual size (0)">1:1</button>
+          <button type="button" id="zoom-in" title="Zoom in (+)">+</button>
+        </div>
+      </header>
+
+      <section class="panels" id="panels" data-view="side">
+        <div class="panel" data-role="baseline">
+          <div class="panel-head">
+            <span class="role">Baseline</span>
+            <span class="badge origin" hidden></span>
+            <span class="path"></span>
+          </div>
+          <div class="panel-error" hidden></div>
+          <div class="viewport"><div class="canvas"></div></div>
+          <div class="panel-empty" hidden></div>
+        </div>
+        <div class="panel" data-role="proposed">
+          <div class="panel-head">
+            <span class="role">Proposed</span>
+            <span class="badge origin" hidden></span>
+            <span class="path"></span>
+          </div>
+          <div class="panel-error" hidden></div>
+          <div class="viewport"><div class="canvas"></div></div>
+          <div class="panel-empty" hidden></div>
+        </div>
+        <div class="panel" data-role="unified">
+          <div class="panel-head">
+            <span class="role">Changes</span>
+            <span class="badge origin" hidden></span>
+            <span class="path"></span>
+          </div>
+          <div class="panel-error" hidden></div>
+          <div class="viewport"><div class="canvas"></div></div>
+          <div class="panel-empty" hidden></div>
+        </div>
+        <div class="main-message" id="main-message" hidden></div>
+      </section>
+
+      <details class="summary" id="summary" open>
+        <summary>
+          <span>Changes</span>
+          <span class="legend">
+            <span class="key added">added</span>
+            <span class="key removed">removed</span>
+            <span class="key changed">changed or edited</span>
+          </span>
+          <span id="summary-counts" class="summary-counts"></span>
+        </summary>
+        <div id="summary-body" class="summary-body"></div>
+      </details>
+    </main>
+  </div>
+</body>
+</html>

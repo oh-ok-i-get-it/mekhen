@@ -1,0 +1,41 @@
+[build-system]
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
+
+[project]
+name = "mekhen"
+dynamic = ["version"]
+description = "View and compare a project's Mermaid architecture diagrams in one live-updating window."
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+requires-python = ">=3.11"
+dependencies = []
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Topic :: Software Development :: Documentation",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+e2e = ["pytest>=8", "playwright>=1.45"]
+
+[project.scripts]
+mekhen = "mekhen.cli.main:main"
+
+[project.urls]
+Homepage = "https://github.com/oh-ok-i-get-it/mekhen"
+
+[tool.hatch.version]
+path = "src/mekhen/__init__.py"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mekhen"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["fixtures"]
+markers = ["e2e: drives a real browser through Playwright (skipped when it is not installed)"]

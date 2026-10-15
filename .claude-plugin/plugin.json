@@ -1,0 +1,14 @@
+{
+  "name": "mekhen",
+  "displayName": "mekhen",
+  "version": "0.2.0",
+  "description": "Shows the plan you're writing as a live diagram of the project, with the parts it changes highlighted. No files are added to your projects.",
+  "author": {
+    "name": "oh-ok-i-get-it",
+    "url": "https://github.com/oh-ok-i-get-it"
+  },
+  "homepage": "https://github.com/oh-ok-i-get-it/mekhen",
+  "repository": "https://github.com/oh-ok-i-get-it/mekhen",
+  "license": "Apache-2.0",
+  "keywords": ["diagram", "architecture", "plan", "mermaid", "visualization"]
+}

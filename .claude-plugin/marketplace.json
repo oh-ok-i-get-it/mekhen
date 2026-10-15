@@ -1,0 +1,15 @@
+{
+  "name": "mekhen",
+  "description": "The mekhen plugin: live diagrams of what a plan changes",
+  "owner": {
+    "name": "oh-ok-i-get-it",
+    "url": "https://github.com/oh-ok-i-get-it"
+  },
+  "plugins": [
+    {
+      "name": "mekhen",
+      "source": "./",
+      "description": "Shows the plan you're writing as a live diagram of the project, with the parts it changes highlighted."
+    }
+  ]
+}

@@ -12,6 +12,8 @@ from mekhen.cli.server import MekhenServer, start_watcher
 from mekhen.core.plans import set_active_plan
 from mekhen.core.store import project_key
 
+pytestmark = pytest.mark.usefixtures("repo_store")  # these tests look inside <project>/.diagrams/
+
 
 def run(srv):
     threading.Thread(target=srv.serve_forever, kwargs={"poll_interval": 0.05}, daemon=True).start()

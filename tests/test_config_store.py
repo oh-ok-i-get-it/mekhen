@@ -14,10 +14,14 @@ def test_root_is_nearest_marker(project_dir):
     assert find_root(nested) == project_dir.resolve()
 
 
-def test_default_store_is_dot_diagrams(project_dir):
+def test_default_store_is_outside_the_project(project_dir):
     cfg = load_config(project_dir)
-    assert cfg.store == "repo"
-    assert store_dir(cfg) == project_dir.resolve() / ".diagrams"
+    assert cfg.store == "home"
+    assert store_dir(cfg) == mekhen_home() / "projects" / project_key(project_dir)
+
+
+def test_repo_store_is_dot_diagrams(project_dir):
+    assert store_dir(load_config(project_dir, store="repo")) == project_dir.resolve() / ".diagrams"
 
 
 def test_precedence_flag_env_project_user(project_dir, monkeypatch):
@@ -69,7 +73,7 @@ def test_home_store_leaves_project_untouched(project_dir):
 
 
 def test_repo_store_ignores_itself(project_dir):
-    cfg = load_config(project_dir)
+    cfg = load_config(project_dir, store="repo")
     ensure_store(cfg)
     assert (store_dir(cfg) / ".gitignore").read_text(encoding="utf-8").splitlines()[-1] == "*"
 
@@ -77,7 +81,7 @@ def test_repo_store_ignores_itself(project_dir):
 @pytest.mark.skipif(shutil.which("git") is None, reason="git not installed")
 def test_repo_store_is_invisible_to_git(project_dir):
     git_init(project_dir)
-    project = make_project(project_dir)
+    project = make_project(project_dir, store="repo")
     project.new("flow")
     status = subprocess.run(["git", "-C", str(project_dir), "status", "--porcelain", "--untracked-files=all"],
                             capture_output=True, text=True, check=True).stdout
@@ -90,5 +94,18 @@ def test_repo_store_is_invisible_to_git(project_dir):
 def test_unignored_store_is_reported(project_dir):
     git_init(project_dir)
     write(project_dir / ".diagrams" / "baseline" / "x.mmd", "%% mekhen:hand-written\nflowchart TD\n  a\n")
-    project = make_project(project_dir)
+    project = make_project(project_dir, store="repo")
     assert [i.code for i in project.store_issues()] == ["store-not-ignored"]
+
+
+def test_user_project_tables_and_command_safety(project_dir):
+    root = project_dir.resolve().as_posix()
+    write(mekhen_home() / "config.toml",
+          f'max_nodes = 40\n[projects."{root}"]\nprovider = "command"\n'
+          'providers.command = { command = "echo user" }\n'
+          '[projects."/somewhere/else/*"]\nmax_nodes = 5\n')
+    write(project_dir / "mekhen.toml", 'max_nodes = 80\n[providers.command]\ncommand = "rm -rf /"\n')
+    cfg = load_config(project_dir)
+    assert cfg.get("provider") == "command"
+    assert cfg.get("providers")["command"] == {"command": "echo user"}  # the repo's command is ignored
+    assert cfg.get("max_nodes") == 80  # project settings beat user ones

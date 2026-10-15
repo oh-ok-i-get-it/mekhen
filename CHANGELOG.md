@@ -1,16 +1,29 @@
 # Changelog
 
-## 0.1.0 (unreleased)
+## 0.2.0 (unreleased)
 
-First version.
+mekhen now shows what a plan changes, using the project's own code as the baseline.
 
-- `mekhen serve`: one browser window for all of a project's diagrams. Side-by-side, baseline-only
-  and proposed-only views, synced pan and zoom, live re-render on save (Server-Sent Events, no
-  page reload), and Mermaid errors shown inside the panel. A second `serve` reuses the running
-  server.
-- Change highlighting for flowcharts: added (green), removed (red), changed (amber) nodes, edges
-  and subgraphs, plus a change list with rename hints.
-- `mekhen list`, `show`, `new`, `check`, `conventions`, `gen imports`, `mermaid info|download`.
-- Diagrams live in `<project>/.diagrams/` (git-ignored by its own `.gitignore`), or with
-  `--store home` in `~/.mekhen/projects/`.
-- Mermaid pinned to 11.16.1.
+- **Plan view.** `mekhen plan FILE` makes any Markdown file the project's active plan. The viewer
+  draws the project at its last commit and marks the files the plan names as edited (amber) or
+  new (green). An optional ```` ```mekhen ```` block adds structural changes: new, removed and
+  moved modules, and new or removed dependencies.
+- **Changes view.** The last commit against the working tree.
+- **Claude Code plugin.** Install it from this repository's marketplace. Plans written in plan
+  mode appear in the viewer automatically, and overlay mistakes are sent back to Claude.
+- **Graph contract.** A versioned JSON graph is now the core data
+  ([docs/graph-schema.md](docs/graph-schema.md)), with three providers: `python` (ast imports),
+  `files` (any language), and `command` (any program printing graph JSON, from user config only).
+- **One viewer per user** for all projects, following the active plan. A viewer started in the
+  background stops after an idle period.
+- **Unified view** (one layout, changes marked) is the default for code-built views. Unmarked
+  edges are faded, and large graphs collapse untouched folders.
+- **Nothing in the repo by default.** Diagram files now default to `~/.mekhen/projects/`. Use
+  `--store repo` for the old `.diagrams/` folder.
+- `mekhen gen` with no kind no longer creates an import graph when there is none.
+- The server's API is now per project: `/api/projects/KEY/...`.
+
+## 0.1.0
+
+First version: the baseline vs proposed viewer for hand-written Mermaid diagrams, with change
+highlighting, lint, `gen imports`, and live reload.

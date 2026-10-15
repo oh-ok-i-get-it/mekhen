@@ -23,6 +23,12 @@ def isolated_env(tmp_path_factory, monkeypatch):
 
 
 @pytest.fixture
+def repo_store(monkeypatch):
+    """Diagrams in <project>/.diagrams/ (the `repo` store) instead of the default home store."""
+    monkeypatch.setenv("MEKHEN_STORE", "repo")
+
+
+@pytest.fixture
 def project_dir(tmp_path) -> Path:
     root = tmp_path / "proj"
     root.mkdir()

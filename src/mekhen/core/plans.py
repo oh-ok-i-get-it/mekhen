@@ -407,6 +407,10 @@ def active_plan(root: Path) -> ActivePlan | None:
     return ActivePlan(plan, str(data.get("source") or "unknown"), float(data.get("time") or 0), data.get("session"))
 
 
+def has_overlay(text: str) -> bool:
+    return bool(_overlay_blocks(text.split("\n")))
+
+
 def check_plan(text: str) -> list[PlanIssue]:
     """Overlay syntax problems only (no project needed): what a fast hook can report."""
     return parse_overlay(text)[1]

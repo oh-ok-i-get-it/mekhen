@@ -81,6 +81,9 @@ def build_parser() -> argparse.ArgumentParser:
         k.add_argument("--name", default=gen.default_name, help=f"output name (default {gen.default_name})")
         gen.add_arguments(k)
 
+    s = sub.add_parser("hook", help="editor/agent integration entry point (reads the event's JSON on stdin)")
+    s.add_argument("event", choices=["post-tool-use", "user-prompt-submit"])
+
     s = sub.add_parser("mermaid", help="the pinned Mermaid version and its offline copy")
     s.add_argument("action", choices=["info", "download"])
     s.add_argument("--force", action="store_true", help="download again even if the copy is valid")
@@ -334,9 +337,16 @@ def cmd_plan(args: argparse.Namespace) -> int:
     return 1 if issues or error else 0
 
 
+def cmd_hook(args: argparse.Namespace) -> int:
+    from mekhen.cli import hook
+
+    return hook.main([args.event])
+
+
 COMMANDS = {
     "serve": cmd_serve,
     "plan": cmd_plan,
+    "hook": cmd_hook,
     "list": cmd_list,
     "show": cmd_show,
     "new": cmd_new,

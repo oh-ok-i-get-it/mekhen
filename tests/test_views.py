@@ -77,3 +77,35 @@ def test_watcher_reports_plan_and_code_changes(sample_dir, tmp_path):
     assert settle().changed == ["@plan"]
     write(sample_dir / "src" / "sample" / "core" / "cache.py", "")
     assert set(settle().changed) == {"@plan", "@changes"}
+
+
+def test_plan_progress_follows_the_working_tree(sample_dir, tmp_path):
+    git_commit(sample_dir)
+    project = make_project(sample_dir)
+    plan = write(tmp_path / "plan.md", "# Cache\n\nEdit `core/db.py`, add `src/sample/core/cache.py`.\n")
+    set_active_plan(sample_dir, plan, "cli")
+
+    def progress():
+        return project.show_json("@plan")["progress"]
+
+    p = progress()
+    assert (p["done"], p["total"], p["unplanned"]) == (0, 2, [])
+    assert {(i["id"], i["planned"], i["done"]) for i in p["items"]} == {
+        ("sample.core.db", "touched", False), ("sample.core.cache", "added", False)}
+
+    write(sample_dir / "src" / "sample" / "core" / "db.py", "import requests\nfrom . import models, cache\n")
+    assert progress()["done"] == 1
+    write(sample_dir / "src" / "sample" / "core" / "cache.py", "")
+    assert progress()["done"] == 2
+    write(sample_dir / "src" / "sample" / "core" / "models.py", "")
+    assert [(u["id"], u["state"]) for u in progress()["unplanned"]] == [("sample.core.models", "touched")]
+
+    summary = [d for d in project.list_json()["diagrams"] if d["id"] == "@plan"][0]
+    assert summary["progress"] == {"done": 2, "total": 2}
+
+
+def test_plan_without_git_has_no_progress(sample_dir, tmp_path):
+    project = make_project(sample_dir)
+    set_active_plan(sample_dir, write(tmp_path / "plan.md", "Edit `core/db.py`.\n"), "cli")
+    data = project.show_json("@plan")
+    assert data["graph"] is not None and data["progress"] is None

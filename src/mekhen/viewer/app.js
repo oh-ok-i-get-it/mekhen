@@ -332,6 +332,7 @@ function renderSummary(detail) {
     else body.append(el("p", { class: "note", text: detail.kind === "graph" ? "Nothing in the diagram changes." : "No differences between baseline and proposed." }));
     for (const hint of diff.hints) body.append(el("p", { class: "hint", text: `Hint: ${hint}` }));
   }
+  if (detail.progress) renderProgress(body, detail.progress);
   if (detail.lint.length) {
     body.append(el("h3", { text: "Issues" }));
     body.append(
@@ -346,6 +347,41 @@ function renderSummary(detail) {
             el("span", { class: "where", text: `${issue.path || ""}${issue.line ? `:${issue.line}` : ""}` }),
             el("span", { text: issue.message }),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+// Planned vs done: each planned change checked against the working tree (HEAD vs now).
+function renderProgress(body, progress) {
+  const word = { added: "new", removed: "remove", touched: "edit", changed: "edit" };
+  body.append(el("h3", { class: "progress-title", text: `Progress: ${progress.done} of ${progress.total} done` }));
+  if (progress.items.length) {
+    body.append(
+      el(
+        "ul",
+        { class: "progress" },
+        progress.items.map((item) =>
+          el(
+            "li",
+            { class: item.done ? "done" : "todo" },
+            el("span", { class: "mark", text: item.done ? "✓" : "○" }),
+            el("span", { class: "kind", text: word[item.planned] || item.planned }),
+            el("span", { text: item.id }),
+          ),
+        ),
+      ),
+    );
+  }
+  if (progress.unplanned.length) {
+    body.append(el("p", { class: "note", text: "Changed, but not in the plan:" }));
+    body.append(
+      el(
+        "ul",
+        { class: "progress" },
+        progress.unplanned.map((item) =>
+          el("li", { class: "unplanned" }, el("span", { class: "mark", text: "~" }), el("span", { class: "kind", text: item.state }), el("span", { text: item.id })),
         ),
       ),
     );
@@ -457,7 +493,7 @@ function renderList() {
           { href: `#${encodeURIComponent(state.key)}/${encodeURIComponent(d.id)}`, class: "item", "aria-current": d.id === state.current ? "true" : null, title: d.id },
           el("span", { class: "name", text: itemName(d) }),
           el("span", { class: `status s-${d.status}`, text: STATUS_LABELS[d.status] || d.status }),
-          el("span", { class: "counts", text: counts(d.changes) }),
+          el("span", { class: "counts", text: d.progress ? `${d.progress.done}/${d.progress.total}` : counts(d.changes), title: d.progress ? "planned changes done" : null }),
         ),
       ),
     ),

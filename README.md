@@ -37,7 +37,7 @@ The viewer is one browser tab for all your projects. It shows:
 
 | View | What it shows |
 |---|---|
-| **Plan** | The project at its last commit, with the active plan applied. Files the plan names are amber (edited) or green (new). |
+| **Plan** | The project at its last commit, with the active plan applied. Files the plan names are amber (edited) or green (new). A **progress** checklist shows which planned changes are already in your working tree, and what changed that the plan didn't mention. |
 | **Changes** | The last commit against your working tree: what you have actually changed so far. |
 | Hand-written pairs | Your own `baseline/NAME.mmd` vs `proposed/NAME.mmd` diagrams ([below](#hand-written-diagrams)). |
 
@@ -162,6 +162,7 @@ baseline and proposed, because the diff matches nodes by id.
 |---|---|
 | `mekhen serve [PATH] [--plan FILE] [--no-open] [--port N] [--offline]` | Open the viewer (one per user; a second call reuses it) |
 | `mekhen plan FILE [--project PATH] [--no-open] [--no-serve] [--json]` | Make FILE the project's active plan; report overlay problems |
+| `mekhen plan --status [--json]` | Which of the active plan's changes are done so far |
 | `mekhen plan --clear` | Stop showing the project's plan |
 | `mekhen list` / `show NAME` / `new NAME` / `check` / `gen` / `conventions` | Hand-written and generated diagram files |
 | `mekhen mermaid info\|download` | The pinned Mermaid version; download it for `serve --offline` |

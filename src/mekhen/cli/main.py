@@ -51,6 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
     s = sub.add_parser("plan", parents=[common], help="show a Markdown plan's changes as the @plan view")
     s.add_argument("file", nargs="?", help="the plan (any Markdown file)")
     s.add_argument("--clear", action="store_true", help="stop showing the project's active plan")
+    s.add_argument("--status", action="store_true", help="show which planned changes are done so far")
     s.add_argument("--no-open", action="store_true", help="don't open a browser tab")
     s.add_argument("--no-serve", action="store_true", help="only record the plan and check it; don't start the viewer")
     s.add_argument("--json", action="store_true", help="machine-readable summary")
@@ -297,6 +298,38 @@ def _plan_file(value: str) -> Path:
     return path
 
 
+PLANNED_WORDS = {"added": "new", "removed": "removed", "touched": "edit", "changed": "edit"}
+
+
+def _plan_status(project: Project, as_json: bool) -> int:
+    """Planned vs done for the project's active plan. Doesn't change which plan is active."""
+    view = project.views.plan()
+    if view is None:
+        print(f"mekhen: no active plan for {project.root.name}; show one with `mekhen plan FILE`", file=sys.stderr)
+        return 1
+    progress = view.progress
+    if as_json:
+        print(json.dumps({"schema": 1, "project": str(project.root), "plan": str(view.plan.path),
+                          "title": view.title, "error": view.error, "progress": progress}, indent=2))
+        return 1 if view.error else 0
+    if view.error:
+        print(f"mekhen: {view.error}", file=sys.stderr)
+        return 1
+    if progress is None:
+        print(f"plan: {view.title}\nProgress needs git history: it compares the working tree with the last commit.")
+        return 0
+    print(f"plan: {view.title}  ({progress['done']} of {progress['total']} done)")
+    width = max((len(item["id"]) for item in progress["items"]), default=0)
+    for item in progress["items"]:
+        mark = "✓" if item["done"] else "○"
+        print(f"  {mark} {item['id'].ljust(width)}  {PLANNED_WORDS[item['planned']]}")
+    if progress["unplanned"]:
+        print("not in the plan:")
+        for item in progress["unplanned"]:
+            print(f"  ~ {item['id']}  ({item['state']})")
+    return 0
+
+
 def cmd_plan(args: argparse.Namespace) -> int:
     from mekhen.cli import instances
     from mekhen.core.store import project_key
@@ -306,8 +339,10 @@ def cmd_plan(args: argparse.Namespace) -> int:
         clear_active_plan(project.root)
         print(f"no active plan for {project.root.name}")
         return 0
+    if args.status:
+        return _plan_status(project, args.json)
     if not args.file:
-        raise UsageError("give a plan file, or --clear")
+        raise UsageError("give a plan file, --status or --clear")
     plan = set_active_plan(project.root, _plan_file(args.file), "cli")
     _announce(project, args)
     view = project.views.plan()
@@ -316,7 +351,7 @@ def cmd_plan(args: argparse.Namespace) -> int:
     error = view.error if view else None
     if args.json:
         print(json.dumps({"schema": 1, "project": str(project.root), "plan": str(plan.path), "title": plan.title,
-                          "counts": counts, "error": error,
+                          "counts": counts, "error": error, "progress": view.progress if view else None,
                           "issues": [{"line": i.line, "message": i.message} for i in issues]}, indent=2))
     else:
         summary = ", ".join(f"{n} {k}" for k, n in counts.items() if n) or "no changes found"

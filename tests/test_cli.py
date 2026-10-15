@@ -125,3 +125,23 @@ def test_core_knows_nothing_about_claude():
         assert "permission_mode" not in text, path
         assert "mekhen.cli" not in text, path
         assert "claude" not in text.lower(), path
+
+
+def test_plan_status(capsys, sample_dir, tmp_path):
+    from conftest import git_commit
+
+    from mekhen.core.plans import active_plan
+
+    git_commit(sample_dir)
+    plan = write(tmp_path / "plan.md", "# Cache\n\nEdit `core/db.py` and `core/models.py`.\n")
+    assert run(capsys, "plan", str(plan), "--project", str(sample_dir), "--no-serve")[0] == 0
+    write(sample_dir / "src" / "sample" / "core" / "db.py", "x = 1\n")
+    code, out, _ = run(capsys, "plan", "--status", "--project", str(sample_dir))
+    assert code == 0 and "1 of 2 done" in out and "✓ sample.core.db" in out and "○ sample.core.models" in out
+    data = json.loads(run(capsys, "plan", "--status", "--json", "--project", str(sample_dir))[1])
+    assert (data["progress"]["done"], data["progress"]["total"]) == (1, 2)
+    assert active_plan(sample_dir).path == plan.resolve()  # --status doesn't change the active plan
+
+    run(capsys, "plan", "--clear", "--project", str(sample_dir))
+    code, _, err = run(capsys, "plan", "--status", "--project", str(sample_dir))
+    assert code == 1 and "no active plan" in err

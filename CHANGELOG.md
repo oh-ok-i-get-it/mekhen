@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **Plan progress.** The Plan view shows a live checklist of the plan's changes: done (already
+  in the working tree) or still to do, plus changes the plan didn't mention. The sidebar shows
+  `done/total`, and `mekhen plan --status` prints the same in the terminal.
+
 ## 0.2.0 (unreleased)
 
 mekhen now shows what a plan changes, using the project's own code as the baseline.

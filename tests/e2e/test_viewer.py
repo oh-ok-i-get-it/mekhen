@@ -217,3 +217,18 @@ def test_follow_opens_the_plan_in_the_unified_view(browser, plan_served):
         timeout=10000)
     context.close()
     assert errors == []
+
+
+def test_plan_progress_ticks_live(browser, plan_served, sample_dir):
+    srv, plan = plan_served
+    context = browser.new_context(viewport={"width": 1400, "height": 900})
+    page = context.new_page()
+    page.goto(f"http://127.0.0.1:{srv.server_port}/")
+    page.wait_for_selector(".progress-title", timeout=30000)
+    assert page.inner_text(".progress-title") == "Progress: 0 of 2 done"
+    assert page.inner_text("a.item[aria-current='true'] .counts") == "0/2"
+    page.wait_for_selector("#conn[data-state='live']")
+    write(sample_dir / "src" / "sample" / "core" / "db.py", "x = 1\n")
+    page.wait_for_selector('.progress-title:text("1 of 2 done")', timeout=15000)
+    assert "✓" in page.inner_text(".progress li.done")
+    context.close()

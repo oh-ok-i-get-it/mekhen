@@ -39,6 +39,33 @@ class View:
     error: str | None = None
     issues: list[PlanIssue] = field(default_factory=list)
     plan: ActivePlan | None = None
+    progress: dict | None = None  # @plan only, with git: planned changes that are done (see progress())
+
+
+# A planned change is done when the working tree shows a matching change to the same node.
+DONE_WHEN = {
+    "added": {"added", "touched", "changed"},  # the module exists now
+    "removed": {"removed"},
+    "touched": {"touched", "changed", "added"},
+    "changed": {"touched", "changed", "added"},
+}
+
+
+def progress(planned: G.Graph, actual: G.Graph) -> dict:
+    """Planned vs done, node by node, from the unfocused @plan and @changes graphs (same baseline)."""
+    items = []
+    for n in sorted(planned.nodes.values(), key=lambda n: n.id):
+        if n.state not in DONE_WHEN:
+            continue
+        now = actual.nodes.get(n.id)
+        items.append({"id": n.id, "label": n.label, "planned": n.state,
+                      "done": now is not None and now.state in DONE_WHEN[n.state]})
+    planned_ids = {item["id"] for item in items}
+    unplanned = [{"id": n.id, "label": n.label, "state": n.state}
+                 for n in sorted(actual.nodes.values(), key=lambda n: n.id)
+                 if n.state in G.MARKED and n.id not in planned_ids]
+    return {"done": sum(item["done"] for item in items), "total": len(items), "items": items,
+            "unplanned": unplanned}
 
 
 class Views:
@@ -105,6 +132,15 @@ class Views:
         g, files, _, _ = self.graph(self.worktree())
         return g, "working tree", files
 
+    def _changes_graph(self, head: GitRevision) -> G.Graph:
+        """HEAD vs the working tree, unfocused: edited files touched, new ones added."""
+        base, _, _, _ = self.graph(head)
+        prop, _, _, _ = self.graph(self.worktree())
+        g = G.diff_graphs(base, prop)
+        index = {**base.path_index(), **prop.path_index()}
+        G.mark_touched(g, {index[p] for p in changed_paths(self.project.root) if p in index})
+        return g
+
     def changes(self) -> View:
         view = View(CHANGES_ID, "Changes", "HEAD vs working tree", "HEAD", "working tree")
         try:
@@ -112,13 +148,8 @@ class Views:
             if head is None:
                 view.error = "no git history: @changes compares the working tree with the last commit"
                 return view
-            base, _, _, _ = self.graph(head)
-            prop, _, _, _ = self.graph(self.worktree())
             view.baseline_name = f"HEAD {head.commit[:7]}"
-            g = G.diff_graphs(base, prop)
-            index = {**base.path_index(), **prop.path_index()}
-            G.mark_touched(g, {index[p] for p in changed_paths(self.project.root) if p in index})
-            view.graph = G.focus(g, self.max_nodes())
+            view.graph = G.focus(self._changes_graph(head), self.max_nodes())
         except (ProviderError, SourceError) as e:
             view.error = str(e)
         return view
@@ -138,6 +169,9 @@ class Views:
             g = G.diff_graphs(base, applied.graph)
             G.mark_touched(g, applied.touched)
             view.issues = applied.issues
+            head = self.head()
+            if head is not None:  # both views share the HEAD baseline, so node ids line up
+                view.progress = progress(g, self._changes_graph(head))
             view.graph = G.focus(g, self.max_nodes())
         except (ProviderError, SourceError, OSError) as e:
             view.error = str(e)
@@ -225,6 +259,8 @@ def view_summary(view: View) -> dict:
         "warnings": 0,
         "diffSupported": view.graph is not None,
         "changes": counts,
+        "progress": ({"done": view.progress["done"], "total": view.progress["total"]}
+                     if view.progress else None),
     }
 
 
@@ -232,7 +268,8 @@ def view_json(view: View, schema: int) -> dict:
     data = {"schema": schema, **view_summary(view), "baseline": None, "proposed": None, "unified": None,
             "graph": None, "diff": None, "lint": [],
             "plan": ({"path": str(view.plan.path), "source": view.plan.source, "time": view.plan.time}
-                     if view.plan else None)}
+                     if view.plan else None),
+            "progress": view.progress}
     if view.error:
         data["lint"].append({"severity": "error", "code": "view", "message": view.error, "path": None,
                              "line": None, "side": None, "diagram": view.id})

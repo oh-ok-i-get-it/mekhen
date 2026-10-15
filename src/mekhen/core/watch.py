@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from mekhen.core.project import Project
+from mekhen.core.views import CHANGES_ID, PLAN_ID
 
 
 @dataclass
@@ -34,18 +35,34 @@ class Watcher:
         self.fingerprint_every = fingerprint_every
         self._polls = 0
         self._fingerprints: dict[str, tuple] = {}
+        self._code: tuple = ()
         self._pending = self._take()
         self._reported = self._pending
 
     def _take(self) -> dict[str, tuple]:
-        if self._polls % self.fingerprint_every == 0:
+        full = self._polls % self.fingerprint_every == 0
+        if full:
             try:
                 self._fingerprints = self.project.generator_fingerprints()
             except Exception:  # a half-written file must not stop the watcher
                 pass
+            try:
+                self._code = self.project.views.code_signature()
+            except Exception:  # noqa: BLE001 - same: never stop watching
+                pass
         self._polls += 1
         files = self.project.file_signatures()
-        return {name: (*sigs, self._fingerprints.get(name)) for name, sigs in files.items()}
+        out = {name: (*sigs, self._fingerprints.get(name)) for name, sigs in files.items()}
+        # The plan is checked on every poll (cheap); code and HEAD on the slower cadence above.
+        try:
+            plan = self.project.views.plan_signature()
+        except Exception:  # noqa: BLE001
+            plan = None
+        if plan is not None:
+            out[PLAN_ID] = (plan, self._code)
+        if self._code and self._code[0] not in (None, "error"):  # a HEAD commit exists
+            out[CHANGES_ID] = (self._code,)
+        return out
 
     def poll(self) -> ChangeSet:
         snap = self._take()

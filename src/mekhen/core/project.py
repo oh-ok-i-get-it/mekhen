@@ -20,6 +20,7 @@ from mekhen.core.gen import GENERATORS, GenError, command_args, options_for, par
 from mekhen.core.lint import lint_side
 from mekhen.core.model import SCHEMA, Diagram, LintIssue, Side, display_path
 from mekhen.core.store import describe, ensure_store, git_ignores, store_dir
+from mekhen.core.views import VIRTUAL_IDS, Views, view_json, view_summary
 from mekhen.mermaid_pin import MERMAID_VERSION
 
 NAME_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
@@ -37,8 +38,10 @@ class Project:
         self.root = cfg.root
         self.store = store_dir(cfg)
         self._lock = threading.RLock()
-        self._parsed: dict[tuple, flowchart.Flowchart] = {}
-        self._stale: dict[tuple, tuple[bool, str | None]] = {}
+        # One entry per file, replaced when the file changes: a long-running server never grows.
+        self._parsed: dict[str, tuple[tuple, flowchart.Flowchart]] = {}
+        self._stale: dict[str, tuple[tuple, tuple[bool, str | None]]] = {}
+        self.views = Views(self)
 
     # -- building blocks --------------------------------------------------------------------
 
@@ -48,11 +51,12 @@ class Project:
     def parsed(self, side: Side) -> flowchart.Flowchart | None:
         if side.diagram_type != "flowchart":
             return None
-        key = (str(side.path), side.signature)
+        path = str(side.path)
         with self._lock:
-            if key not in self._parsed:
-                self._parsed[key] = flowchart.parse(side.text)
-            return self._parsed[key]
+            cached = self._parsed.get(path)
+            if cached is None or cached[0] != side.signature:
+                cached = self._parsed[path] = (side.signature, flowchart.parse(side.text))
+            return cached[1]
 
     def generator_options(self, command: str) -> tuple[str, dict, str]:
         kind, args = parse_command(command)
@@ -65,12 +69,14 @@ class Project:
         try:
             kind, options, command = self.generator_options(side.gen_command)
             gen = GENERATORS[kind]
-            key = (str(side.path), side.signature, gen.fingerprint(self.root, options))
+            key = (side.signature, gen.fingerprint(self.root, options))
+            path = str(side.path)
             with self._lock:
-                if key not in self._stale:
+                cached = self._stale.get(path)
+                if cached is None or cached[0] != key:
                     fresh = gen.generate(self.root, options, command)
-                    self._stale[key] = (fresh != side.text, None)
-                return self._stale[key]
+                    cached = self._stale[path] = (key, (fresh != side.text, None))
+                return cached[1]
         except GenError as e:
             return False, str(e)
 
@@ -167,10 +173,14 @@ class Project:
             return {
                 "schema": SCHEMA,
                 "store": {"kind": self.cfg.store, "path": str(self.store), "description": describe(self.cfg)},
-                "diagrams": [self.summary_json(d) for d in diagrams.values()],
+                "diagrams": [*(view_summary(v) for v in self.views.available()),
+                             *(self.summary_json(d) for d in diagrams.values())],
             }
 
     def show_json(self, diagram_id: str) -> dict | None:
+        if diagram_id in VIRTUAL_IDS:
+            view = self.views.get(diagram_id)
+            return view_json(view, SCHEMA) if view else None
         with self._lock:
             d = self.diagrams().get(diagram_id)
             if d is None:

@@ -10,6 +10,7 @@ Precedence for where diagrams live (first match wins):
 
 from __future__ import annotations
 
+import fnmatch
 import os
 import sys
 import tomllib
@@ -33,6 +34,12 @@ class Config:
     explicit_dir: Path | None = None
     gen: dict[str, dict[str, Any]] = field(default_factory=dict)
     sources: list[str] = field(default_factory=list)  # config files that were read
+    # Everything else (provider, providers.<name>, max_nodes, ...): user config, then the user
+    # config's [projects."<glob>"] tables matching this root, then the project's own config.
+    settings: dict[str, Any] = field(default_factory=dict)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        return self.settings.get(key, default)
 
 
 def mekhen_home(env: Mapping[str, str] | None = None) -> Path:
@@ -86,6 +93,27 @@ def _merge(base: dict[str, Any], override: Mapping[str, Any]) -> dict[str, Any]:
     return out
 
 
+def _matches(root: Path, pattern: str) -> bool:
+    """A [projects."..."] key: a folder path or a glob over folder paths; ~ is the home folder."""
+    pat = pattern.replace("\\", "/")
+    if pat.startswith("~"):
+        pat = Path.home().as_posix() + pat[1:]
+    return fnmatch.fnmatchcase(os.path.normcase(root.resolve().as_posix()), os.path.normcase(pat.rstrip("/")))
+
+
+def _settings(root: Path, user: dict[str, Any], project: dict[str, Any]) -> dict[str, Any]:
+    base = {k: v for k, v in user.items() if k != "projects"}
+    for pattern, table in (user.get("projects") or {}).items():
+        if isinstance(table, Mapping) and _matches(root, str(pattern)):
+            base = _merge(base, table)
+    # A project's own files may choose providers and options, but never a command to run.
+    own = _merge({}, project)
+    providers = own.get("providers")
+    if isinstance(providers, Mapping) and "command" in providers:
+        own["providers"] = {k: v for k, v in providers.items() if k != "command"}
+    return _merge(base, own)
+
+
 def _check_store(value: Any, where: str) -> str:
     if value not in STORES:
         raise ConfigError(f"{where}: store must be one of {', '.join(STORES)}, got {value!r}")
@@ -122,21 +150,25 @@ def load_config(
         sources.append(str(user_file))
 
     gen = _merge(user.get("gen", {}) or {}, project.get("gen", {}) or {})
+    settings = _settings(root, user, project)
 
     def explicit(value: Path | str) -> Path:
         p = Path(value).expanduser()
         return p if p.is_absolute() else root / p
 
+    def make(kind: str, path: Path | None = None) -> Config:
+        return Config(root, kind, path, gen, sources, settings)
+
     if dir:
-        return Config(root, "dir", explicit(dir), gen, sources)
+        return make("dir", explicit(dir))
     if store:
-        return Config(root, _check_store(store, "--store"), None, gen, sources)
+        return make(_check_store(store, "--store"))
     if env.get("MEKHEN_STORE"):
-        return Config(root, _check_store(env["MEKHEN_STORE"], "MEKHEN_STORE"), None, gen, sources)
+        return make(_check_store(env["MEKHEN_STORE"], "MEKHEN_STORE"))
     if project.get("dir"):
-        return Config(root, "dir", explicit(project["dir"]), gen, sources)
+        return make("dir", explicit(project["dir"]))
     if project.get("store"):
-        return Config(root, _check_store(project["store"], "project config"), None, gen, sources)
+        return make(_check_store(project["store"], "project config"))
     if user.get("store"):
-        return Config(root, _check_store(user["store"], str(user_file)), None, gen, sources)
-    return Config(root, DEFAULT_STORE, None, gen, sources)
+        return make(_check_store(user["store"], str(user_file)))
+    return make(DEFAULT_STORE)

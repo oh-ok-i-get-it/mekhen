@@ -22,14 +22,14 @@ def test_graph_of_sample(sample_dir):
     fc = parse(text)
     assert fc.errors == []
     assert edges(text) == {
-        ("m_sample", "m_sample__core__models", "solid"),  # from .core import models
-        ("m_sample__api__routes", "m_sample__core__db", "solid"),  # relative + lazy import
-        ("m_sample__api__routes", "m_sample__core__models", "solid"),
-        ("m_sample__core__db", "m_sample__core__models", "solid"),
-        ("m_sample__core__models", "m_sample__api__routes", "dotted"),  # TYPE_CHECKING only
+        ("n_sample", "n_sample__core__models", "solid"),  # from .core import models
+        ("n_sample__api__routes", "n_sample__core__db", "solid"),  # relative + lazy import
+        ("n_sample__api__routes", "n_sample__core__models", "solid"),
+        ("n_sample__core__db", "n_sample__core__models", "solid"),
+        ("n_sample__core__models", "n_sample__api__routes", "dotted"),  # TYPE_CHECKING only
     }
-    assert fc.nodes["m_sample__core__db"].parent == "p_sample__core"
-    assert fc.subgraphs["p_sample__core"].parent == "p_sample"
+    assert fc.nodes["n_sample__core__db"].parent == "g_sample__core"
+    assert fc.subgraphs["g_sample__core"].parent == "g_sample"
     assert not any("test" in n for n in fc.nodes)  # tests/ is not a package of the project
 
 
@@ -40,9 +40,9 @@ def test_output_is_deterministic(sample_dir):
 def test_depth_collapses_modules(sample_dir):
     text = gen(sample_dir, depth=2)
     assert edges(text) == {
-        ("m_sample", "m_sample__core", "solid"),
-        ("m_sample__api", "m_sample__core", "solid"),
-        ("m_sample__core", "m_sample__api", "dotted"),
+        ("n_sample", "n_sample__core", "solid"),
+        ("n_sample__api", "n_sample__core", "solid"),
+        ("n_sample__core", "n_sample__api", "dotted"),
     }
 
 
@@ -50,8 +50,8 @@ def test_exclude_and_external(sample_dir):
     text = gen(sample_dir, exclude=["api"], include_external=True)
     fc = parse(text)
     assert not any("api" in n for n in fc.nodes)
-    assert "x_requests" in fc.nodes  # third party shown
-    assert "x_json" not in fc.nodes and "x_typing" not in fc.nodes  # standard library never shown
+    assert "n_external_x003arequests" in fc.nodes  # third party shown
+    assert not any(n.endswith(("json", "typing")) for n in fc.nodes)  # standard library never shown
 
 
 def test_syntax_errors_are_noted_not_fatal(sample_dir):
